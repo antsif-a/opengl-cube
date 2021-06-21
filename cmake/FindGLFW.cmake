@@ -1,4 +1,4 @@
-set(GLFW_DIR ${CMAKE_SOURCE_DIR}/libs/glfw_aaa)
+set(GLFW_DIR ${CMAKE_SOURCE_DIR}/libs/glfw)
 
 if (NOT EXISTS ${GLFW_DIR})
     message(FATAL_ERROR "Cannot find GLFW installation, try running 'git submodule update --init'.")
