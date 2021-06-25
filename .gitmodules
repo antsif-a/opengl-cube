@@ -2,3 +2,11 @@
 	path = libs/glfw
 	url = https://github.com/glfw/glfw
     branch = master
+[submodule "glew"]
+	path = libs/glew
+	url = https://github.com/Perlmint/glew-cmake
+	branch = master
+[submodule "glm"]
+	path = libs/glm
+	url = https://github.com/g-truc/glm
+	branch = master

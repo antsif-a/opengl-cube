@@ -1,127 +1,184 @@
-#include <glad/gl.h>
+#include <iostream>
+
+#include <GL/glew.h>
 #include <GLFW/glfw3.h>
 
-#include <linmath.h>
+#include <glm/glm.hpp>
 
-#include <cstdlib>
-#include <cstdio>
+#include "common/shader.hpp"
+#include "common/controls.hpp"
 
-static const struct {
-    float x, y;
+#pragma clang diagnostic ignored "-Wmissing-braces"
+
+struct Vertex {
+    float x, y, z;
+};
+
+struct Color {
     float r, g, b;
-} vertices[3] =
-        {
-                { -0.6f, -0.4f, 1.f, 0.f, 0.f },
-                { 0.6f, -0.4f, 0.f, 1.f, 0.f },
-                { 0.f, 0.6f, 0.f, 0.f, 1.f }
-        };
+};
 
-static const char* vertex_shader_text =
-        "#version 110\n"
-        "uniform mat4 MVP;\n"
-        "attribute vec3 vCol;\n"
-        "attribute vec2 vPos;\n"
-        "varying vec3 color;\n"
-        "void main() {\n"
-        "    gl_Position = MVP * vec4(vPos, 0.0, 1.0);\n"
-        "    color = vCol;\n"
-        "}\n";
+static GLFWwindow *window;
+static GLuint vertex_arr_id, vertex_buffer, color_buffer, program_id, matrix_id;
 
-static const char* fragment_shader_text =
-        "#version 110\n"
-        "varying vec3 color;\n"
-        "void main() {\n"
-        "    gl_FragColor = vec4(color, 1.0);\n"
-        "}\n";
+static const int total_vertices = 6 * 2 * 3; // 6 - squares for cube; 2 - triangles for square; 3 - vertices in triangle
 
-static void error_callback(int error, const char* description) {
-    fprintf(stderr, "Error: %s\n", description);
-}
+// vertices for triangles
+static struct Vertex vertex_buffer_data[total_vertices * 3] = {
+        -1.0f, -1.0f, -1.0f,
+        -1.0f, -1.0f, 1.0f,
+        -1.0f, 1.0f, 1.0f,
+        1.0f, 1.0f, -1.0f,
+        -1.0f, -1.0f, -1.0f,
+        -1.0f, 1.0f, -1.0f,
+        1.0f, -1.0f, 1.0f,
+        -1.0f, -1.0f, -1.0f,
+        1.0f, -1.0f, -1.0f,
+        1.0f, 1.0f, -1.0f,
+        1.0f, -1.0f, -1.0f,
+        -1.0f, -1.0f, -1.0f,
+        -1.0f, -1.0f, -1.0f,
+        -1.0f, 1.0f, 1.0f,
+        -1.0f, 1.0f, -1.0f,
+        1.0f, -1.0f, 1.0f,
+        -1.0f, -1.0f, 1.0f,
+        -1.0f, -1.0f, -1.0f,
+        -1.0f, 1.0f, 1.0f,
+        -1.0f, -1.0f, 1.0f,
+        1.0f, -1.0f, 1.0f,
+        1.0f, 1.0f, 1.0f,
+        1.0f, -1.0f, -1.0f,
+        1.0f, 1.0f, -1.0f,
+        1.0f, -1.0f, -1.0f,
+        1.0f, 1.0f, 1.0f,
+        1.0f, -1.0f, 1.0f,
+        1.0f, 1.0f, 1.0f,
+        1.0f, 1.0f, -1.0f,
+        -1.0f, 1.0f, -1.0f,
+        1.0f, 1.0f, 1.0f,
+        -1.0f, 1.0f, -1.0f,
+        -1.0f, 1.0f, 1.0f,
+        1.0f, 1.0f, 1.0f,
+        -1.0f, 1.0f, 1.0f,
+        1.0f, -1.0f, 1.0f
+};
 
-static void key_callback(GLFWwindow* window, int key, int scancode, int action, int mods) {
-    if (key == GLFW_KEY_ESCAPE && action == GLFW_PRESS)
-        glfwSetWindowShouldClose(window, GLFW_TRUE);
-}
+static struct {
+    float r, g, b;
+} color_buffer_data[total_vertices * 3] = {};
 
-int main() {
-    GLFWwindow* window;
-    GLuint vertex_buffer, vertex_shader, fragment_shader, program;
-    GLint mvp_location, vpos_location, vcol_location;
-
-    glfwSetErrorCallback(error_callback);
-
-    if (!glfwInit())
-        exit(EXIT_FAILURE);
-
-    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 2);
-    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 0);
-
-    window = glfwCreateWindow(640, 480, "Simple example", nullptr, nullptr);
-    if (!window) {
-        glfwTerminate();
-        exit(EXIT_FAILURE);
+void gen_color_buffer_data() {
+    for (int v = 0; v < total_vertices; v++) {
+        color_buffer_data[v].r = vertex_buffer_data[v].x;
+        color_buffer_data[v].g = vertex_buffer_data[v].y;
+        color_buffer_data[v].b = vertex_buffer_data[v].z;
     }
+}
 
-    glfwSetKeyCallback(window, key_callback);
+void init() {
+    gen_color_buffer_data();
 
-    glfwMakeContextCurrent(window);
-    gladLoadGL(glfwGetProcAddress);
-    glfwSwapInterval(1);
+    glEnable(GL_DEPTH_TEST);
+    glEnable(GL_CULL_FACE);
+    glDepthFunc(GL_LESS);
+
+    program_id = loadShader("shader.vert", "shader.frag");
+
+    glGenVertexArrays(1, &vertex_arr_id);
+    glBindVertexArray(vertex_arr_id);
 
     glGenBuffers(1, &vertex_buffer);
     glBindBuffer(GL_ARRAY_BUFFER, vertex_buffer);
-    glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(vertex_buffer_data), vertex_buffer_data, GL_STATIC_DRAW);
 
-    vertex_shader = glCreateShader(GL_VERTEX_SHADER);
-    glShaderSource(vertex_shader, 1, &vertex_shader_text, nullptr);
-    glCompileShader(vertex_shader);
+    glGenBuffers(1, &color_buffer);
+    glBindBuffer(GL_ARRAY_BUFFER, color_buffer);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(color_buffer_data), color_buffer_data, GL_STATIC_DRAW);
 
-    fragment_shader = glCreateShader(GL_FRAGMENT_SHADER);
-    glShaderSource(fragment_shader, 1, &fragment_shader_text, nullptr);
-    glCompileShader(fragment_shader);
+    matrix_id = glGetUniformLocation(program_id, "MVP");
+}
 
-    program = glCreateProgram();
-    glAttachShader(program, vertex_shader);
-    glAttachShader(program, fragment_shader);
-    glLinkProgram(program);
+int main() {
+    glfwSetErrorCallback([] (int error_core, const char *description) -> void {
+        fprintf(stderr, description);
+    });
 
-    mvp_location = glGetUniformLocation(program, "MVP");
-    vpos_location = glGetAttribLocation(program, "vPos");
-    vcol_location = glGetAttribLocation(program, "vCol");
+    if (!glfwInit()) {
+        std::cerr << "Failed to initialize GLFW" << std::endl;
+        system("pause");
+        return -1;
+    }
 
-    glEnableVertexAttribArray(vpos_location);
-    glVertexAttribPointer(vpos_location, 2, GL_FLOAT, GL_FALSE,
-                          sizeof(vertices[0]), nullptr);
-    glEnableVertexAttribArray(vcol_location);
-    glVertexAttribPointer(vcol_location, 3, GL_FLOAT, GL_FALSE,
-                          sizeof(vertices[0]), (void*) (sizeof(float) * 2));
+    glfwWindowHint(GLFW_SAMPLES, 4);
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
+    glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
 
-    while (!glfwWindowShouldClose(window)) {
-        float ratio;
-        int width, height;
-        mat4x4 m, p, mvp;
+    GLFWmonitor* monitor = glfwGetPrimaryMonitor();
+    const GLFWvidmode* mode = glfwGetVideoMode(monitor);
 
-        glfwGetFramebufferSize(window, &width, &height);
-        ratio = (float) width / (float) height;
+    window = glfwCreateWindow(mode->width, mode->height, "The Cube", monitor, nullptr);
+    if (window == nullptr) {
+        glfwTerminate();
 
-        glViewport(0, 0, width, height);
-        glClear(GL_COLOR_BUFFER_BIT);
+        std::cerr << "Failed to open GLFW window" << std::endl;
+        system("pause");
+        return -1;
+    }
 
-        mat4x4_identity(m);
-        mat4x4_rotate_Z(m, m, (float) glfwGetTime());
-        mat4x4_ortho(p, -ratio, ratio, -1.f, 1.f, 1.f, -1.f);
-        mat4x4_mul(mvp, p, m);
+    glfwMakeContextCurrent(window);
 
-        glUseProgram(program);
-        glUniformMatrix4fv(mvp_location, 1, GL_FALSE, (const GLfloat*) mvp);
-        glDrawArrays(GL_TRIANGLES, 0, 3);
+    glewExperimental = true;
+    if (glewInit() != GLEW_OK) {
+        glfwTerminate();
+
+        std::cerr << "Failed to initialize GLEW" << std::endl;
+        system("pause");
+        return -1;
+    }
+
+    glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+    glfwSetInputMode(window, GLFW_STICKY_KEYS, GL_TRUE);
+    glfwSwapInterval(1);
+
+    init();
+
+    while (glfwGetKey(window, GLFW_KEY_ESCAPE) != GLFW_PRESS && !glfwWindowShouldClose(window)) {
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+        glUseProgram(program_id);
+
+        computeMatricesFromInputs(window);
+        glm::mat4 proj_matrix = getProjectionMatrix();
+        glm::mat4 view_matrix = getViewMatrix();
+        glm::mat4 model_matrix = glm::mat4(1.0);
+        glm::mat4 mvp = proj_matrix * view_matrix * model_matrix;
+
+        glUniformMatrix4fv(matrix_id, 1, GL_FALSE, &mvp[0][0]);
+
+        glEnableVertexAttribArray(0);
+        glBindBuffer(GL_ARRAY_BUFFER, vertex_buffer);
+        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, nullptr);
+
+        glEnableVertexAttribArray(1);
+        glBindBuffer(GL_ARRAY_BUFFER, color_buffer);
+        glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 0, nullptr);
+
+        glDrawArrays(GL_TRIANGLES, 0, 12 * 3);
+
+        glDisableVertexAttribArray(0);
+        glDisableVertexAttribArray(1);
 
         glfwSwapBuffers(window);
         glfwPollEvents();
     }
 
-    glfwDestroyWindow(window);
+    glDeleteBuffers(1, &vertex_buffer);
+    glDeleteBuffers(1, &color_buffer);
+    glDeleteProgram(program_id);
+    glDeleteVertexArrays(1, &vertex_arr_id);
 
     glfwTerminate();
-    exit(EXIT_SUCCESS);
+
+    return 0;
 }
