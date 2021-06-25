@@ -24,7 +24,7 @@ static GLuint vertex_arr_id, vertex_buffer, color_buffer, program_id, matrix_id;
 static const int total_vertices = 6 * 2 * 3; // 6 - squares for cube; 2 - triangles for square; 3 - vertices in triangle
 
 // vertices for triangles
-static struct Vertex vertex_buffer_data[total_vertices * 3] = {
+static struct Vertex vertex_buffer_data[total_vertices] = {
         -1.0f, -1.0f, -1.0f,
         -1.0f, -1.0f, 1.0f,
         -1.0f, 1.0f, 1.0f,
@@ -63,9 +63,7 @@ static struct Vertex vertex_buffer_data[total_vertices * 3] = {
         1.0f, -1.0f, 1.0f
 };
 
-static struct {
-    float r, g, b;
-} color_buffer_data[total_vertices * 3] = {};
+Color color_buffer_data[total_vertices] = {};
 
 void gen_color_buffer_data() {
     for (int v = 0; v < total_vertices; v++) {
